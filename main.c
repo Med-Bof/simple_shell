@@ -8,7 +8,7 @@
 
 #define DELIMITERS " \t\r\n\a"
 
-void handle_error(const char *argv0, const char *command, const char *message);
+void handle_error(const char *argv0, const char *message);
 
 /**
  * display_prompt - Displays the shell prompt.
@@ -17,7 +17,8 @@ void handle_error(const char *argv0, const char *command, const char *message);
  */
 void display_prompt(void)
 {
-	printf("$ ");
+	if (isatty(STDIN_FILENO)) /* Check if stdin is a terminal */
+		printf("$ ");
 }
 
 /**
@@ -89,32 +90,39 @@ char **parse_input(char *input)
 }
 
 /**
- * handle_path - Searches for the command in the PATH.
+ * handle_path - Checks if the command is a valid executable.
  *
- * @command: The command to find.
- * Return: The full path of the command if found, otherwise NULL.
+ * @command: The command to check.
+ * Return: The command itself if it's a valid path, or the full path.
  */
 char *handle_path(char *command)
 {
 	char *path = getenv("PATH");
-	char *path_copy = strdup(path);
+	char *path_copy;
 	char *directory;
 	char full_path[1024];
+
+	if (access(command, X_OK) == 0)  /* Check if command is an executable file */
+	{
+		return (strdup(command));  /* Return the command if it's a valid executable */
+	}
+	path_copy = strdup(path);
 
 	directory = strtok(path_copy, ":");
 	while (directory != NULL)
 	{
-		snprintf(full_path, sizeof(full_path), "%s/%s", directory, command);
-		if (access(full_path, X_OK) == 0)
-		{
-			free(path_copy);
-			return (strdup(full_path));
-		}
-		directory = strtok(NULL, ":");
+	snprintf(full_path, sizeof(full_path), "%s/%s", directory, command);
+	if (access(full_path, X_OK) == 0)
+        {
+            free(path_copy);
+            return (strdup(full_path));
+        }
+        directory = strtok(NULL, ":");
 	}
 	free(path_copy);
-	return (NULL);
+	return NULL;
 }
+
 
 /**
  * execute_command - Executes the command entered by the user.
@@ -135,7 +143,7 @@ void execute_command(char **args, const char *argv)
 	command = handle_path(args[0]);
 	if (command == NULL)
 	{
-		handle_error(argv, args[0], "command not found");
+		handle_error(argv, "command not found");
 		return;
 	}
 
@@ -169,13 +177,12 @@ void execute_command(char **args, const char *argv)
  * handle_error - Handles errors and prints appropriate messages.
  *
  * @argv0: The name of the shell executable (argv[0]).
- * @command: The command that caused the error.
  * @message: The error message to print.
  * Return: no return
  */
-void handle_error(const char *argv0, const char *command, const char *message)
+void handle_error(const char *argv0, const char *message)
 {
-	fprintf(stderr, "%s: %s: %s\n", argv0, command, message);
+	fprintf(stderr, "%s: %s\n", argv0, message);
 }
 
 /**
@@ -205,3 +212,4 @@ int main(int argc, char *argv[])
 
 	return (0);
 }
+
