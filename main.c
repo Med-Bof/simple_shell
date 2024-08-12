@@ -7,10 +7,13 @@
 #include <errno.h>
 
 #define DELIMITERS " \t\r\n\a"
-void handle_error(const char *command, const char *message);
+
+void handle_error(const char *argv0, const char *command, const char *message);
 
 /**
  * display_prompt - Displays the shell prompt.
+ *
+ * Return: no return
  */
 void display_prompt(void)
 {
@@ -32,13 +35,13 @@ char *read_input(void)
 	if (read == -1)
 	{
 		free(input);
-	if (feof(stdin)) /* Handle Ctrl+D */
-		exit(0);
-	else
-	{
-		perror("getline");
-		exit(EXIT_FAILURE);
-	}
+		if (feof(stdin)) /* Handle Ctrl+D */
+			exit(0);
+		else
+		{
+			perror("getline");
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	return (input);
@@ -46,8 +49,8 @@ char *read_input(void)
 
 /**
  * parse_input - Splits the input into command and arguments.
- * @input: The input string.
  *
+ * @input: The input string.
  * Return: Array of command and arguments.
  */
 char **parse_input(char *input)
@@ -68,16 +71,16 @@ char **parse_input(char *input)
 		tokens[position] = token;
 		position++;
 
-	if (position >= bufsize)
-	{
-		bufsize += 64;
-		tokens = realloc(tokens, bufsize * sizeof(char *));
-	if (!tokens)
-	{
-		fprintf(stderr, "allocation error\n");
-		exit(EXIT_FAILURE);
-	}
-	}
+		if (position >= bufsize)
+		{
+			bufsize += 64;
+			tokens = realloc(tokens, bufsize * sizeof(char *));
+			if (!tokens)
+			{
+				fprintf(stderr, "allocation error\n");
+				exit(EXIT_FAILURE);
+			}
+		}
 
 		token = strtok(NULL, DELIMITERS);
 	}
@@ -87,8 +90,8 @@ char **parse_input(char *input)
 
 /**
  * handle_path - Searches for the command in the PATH.
- * @command: The command to find.
  *
+ * @command: The command to find.
  * Return: The full path of the command if found, otherwise NULL.
  */
 char *handle_path(char *command)
@@ -102,11 +105,11 @@ char *handle_path(char *command)
 	while (directory != NULL)
 	{
 		snprintf(full_path, sizeof(full_path), "%s/%s", directory, command);
-	if (access(full_path, X_OK) == 0)
-	{
-		free(path_copy);
-		return (strdup(full_path));
-	}
+		if (access(full_path, X_OK) == 0)
+		{
+			free(path_copy);
+			return (strdup(full_path));
+		}
 		directory = strtok(NULL, ":");
 	}
 	free(path_copy);
@@ -115,33 +118,36 @@ char *handle_path(char *command)
 
 /**
  * execute_command - Executes the command entered by the user.
+ *
  * @args: The array of command and arguments.
+ * @argv: The name of the shell executable (argv[0]).
+ * Return: no return
  */
-void execute_command(char **args)
+void execute_command(char **args, const char *argv)
 {
 	pid_t pid;
 	int status;
 	char *command;
 
 	if (args[0] == NULL)
-		return;/* Empty command was entered */
+		return; /* Empty command was entered */
 
 	command = handle_path(args[0]);
 	if (command == NULL)
 	{
-		handle_error(args[0], "command not found");
+		handle_error(argv, args[0], "command not found");
 		return;
 	}
 
 	pid = fork();
 	if (pid == 0)
 	{
-	/* Child process */
-	if (execve(command, args, NULL) == -1)
-	{
-		perror("execve");
-	}
-	exit(EXIT_FAILURE);
+		/* Child process */
+		if (execve(command, args, NULL) == -1)
+		{
+			perror("execve");
+		}
+		exit(EXIT_FAILURE);
 	}
 	else if (pid < 0)
 	{
@@ -151,9 +157,9 @@ void execute_command(char **args)
 	else
 	{
 		/* Parent process */
-	do	{
-		waitpid(pid, &status, WUNTRACED);
-	} while (!WIFEXITED(status) && !WIFSIGNALED(status));
+		do {
+			waitpid(pid, &status, WUNTRACED);
+		} while (!WIFEXITED(status) && !WIFSIGNALED(status));
 	}
 
 	free(command);
@@ -161,19 +167,22 @@ void execute_command(char **args)
 
 /**
  * handle_error - Handles errors and prints appropriate messages.
+ *
+ * @argv0: The name of the shell executable (argv[0]).
  * @command: The command that caused the error.
  * @message: The error message to print.
+ * Return: no return
  */
-void handle_error(const char *command, const char *message)
+void handle_error(const char *argv0, const char *command, const char *message)
 {
-	fprintf(stderr, "%s: %s\n", command, message);
+	fprintf(stderr, "%s: %s: %s\n", argv0, command, message);
 }
 
 /**
  * main - Core main function of the shell
+ *
  * @argc: Number of arguments passed to the program
  * @argv: Array of arguments
- *
  * Return: Always 0
  */
 int main(int argc, char *argv[])
@@ -189,8 +198,7 @@ int main(int argc, char *argv[])
 		display_prompt();
 		input = read_input();
 		args = parse_input(input);
-		execute_command(args);
-
+		execute_command(args, argv[0]);
 		free(input);
 		free(args);
 	}
